@@ -4,45 +4,74 @@ import scanpy as sc
 
 import reptrvae
 
+norm = True
 data_name = sys.argv[1]
 # specific_cell_type = sys.argv[2]
 
-if data_name == "haber":
-    conditions = ["Control", "Hpoly.Day10"]
-    target_conditions = ["Hpoly.Day10"]
-    source_condition = "Control"
-    target_condition = "Hpoly.Day10"
-    labelencoder = {"Control": 0, "Hpoly.Day10": 1}
-    cell_type_key = "cell_label"
-    condition_key = "condition"
-    if len(sys.argv) == 3:
+if data_name == "alzPro":
+    conditions = ["WT", "HET"]
+    target_conditions = ["HET"]
+    source_condition = "WT"
+    target_condition = "HET"
+    labelencoder = {"WT": 0, "HET": 1}
+    cell_type_key = "Timepoint"
+    condition_key = "Group"
+    if len(sys.argv) >= 3:
         specific_celltype = sys.argv[2]
     else:
-        specific_celltype = "Tuft"
+        specific_celltype = "3m"
+    if len(sys.argv) == 4:
+        combination = sys.argv[3]
+    else:
+        combination = None
+    dname = data_name
 
-elif data_name == "kang":
-    conditions = ["control", "stimulated"]
-    target_conditions = ["stimulated"]
-    source_condition = "control"
-    target_condition = "stimulated"
-    labelencoder = {"control": 0, "stimulated": 1}
-    cell_type_key = "cell_type"
-    condition_key = "condition"
-    if len(sys.argv) == 3:
+elif data_name == "alzPro-time":
+    conditions = ["3m", "6m", "9m"]
+    source_condition = "6m"
+    target_condition = "9m"
+    target_conditions = [target_condition]
+    labelencoder = {"3m": 0, "6m": 1, "9m": 2}
+    cell_type_key = "Group"
+    condition_key = "Timepoint"
+    if len(sys.argv) >= 3:
         specific_celltype = sys.argv[2]
     else:
-        specific_celltype = "NK"
+        specific_celltype = "HET"
+    if len(sys.argv) == 4:
+        combination = sys.argv[3]
+    else:
+        combination = None
+    dname = data_name.split('-')[0]
+
 else:
     raise Exception("InValid data name")
 
-adata = sc.read(f"/home/mohsen/data/{data_name}/{data_name}_normalized.h5ad")
+adata = sc.read(f"./data/{dname}_{'normalized' if norm else 'count'}_{combination}.h5ad")
 adata = adata[adata.obs[condition_key].isin(conditions)]
 
-if adata.shape[1] > 2000:
-    sc.pp.highly_variable_genes(adata, n_top_genes=2000)
-    adata = adata[:, adata.var['highly_variable']]
+# if adata.shape[1] > 2000:
+#     sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+#     adata = adata[:, adata.var['highly_variable']]
 
 train_adata, valid_adata = reptrvae.utils.train_test_split(adata, 0.80)
+
+if norm:
+    params = {
+        "lr": 0.00005,
+        "epochs": 1000,
+        "batch": 4,
+        "earlyStop": 100,
+        "lrReduce": 50
+    }
+else:
+    params = {
+        "lr": 0.001,
+        "epochs": 50000,
+        "batch": 4,
+        "earlyStop": 300,
+        "lrReduce": 150
+    }
 
 if specific_celltype == 'all':
     for specific_celltype in adata.obs[cell_type_key].unique().tolist():
@@ -60,7 +89,7 @@ if specific_celltype == 'all':
                                         clip_value=1e6,
                                         lambda_l1=0.0,
                                         lambda_l2=0.0,
-                                        learning_rate=0.001,
+                                        learning_rate=params['lr'],
                                         model_path=f"./models/trVAE/best/{data_name}-{specific_celltype}/",
                                         dropout_rate=0.2,
                                         output_activation='relu')
@@ -69,11 +98,11 @@ if specific_celltype == 'all':
                       net_valid_adata,
                       labelencoder,
                       condition_key,
-                      n_epochs=1000,
-                      batch_size=512,
+                      n_epochs=params['epochs'],
+                      batch_size=params['batch'],
                       verbose=2,
-                      early_stop_limit=20,
-                      lr_reducer=10,
+                      early_stop_limit=params['earlyStop'],
+                      lr_reducer=params['lrReduce'],
                       shuffle=True,
                       save=False,
                       retrain=True,
@@ -97,7 +126,7 @@ if specific_celltype == 'all':
         pred_adata.obs[cell_type_key] = specific_celltype
 
         adata_to_write = pred_adata.concatenate(target_adata)
-        adata_to_write.write_h5ad(f"/home/mohsen/data/trvae/reconstructed/trVAE_{data_name}/{specific_celltype}.h5ad")
+        adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{combination}.h5ad")
         # reptrvae.pl.plot_umap(mmd_adata,
         #                       condition_key, cell_type_key,
         #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
@@ -117,7 +146,7 @@ else:
                                     clip_value=1e6,
                                     lambda_l1=0.0,
                                     lambda_l2=0.0,
-                                    learning_rate=0.001,
+                                    learning_rate=params['lr'],
                                     model_path=f"./models/trVAE/best/{data_name}-{specific_celltype}/",
                                     dropout_rate=0.2,
                                     output_activation='relu')
@@ -126,11 +155,11 @@ else:
                   net_valid_adata,
                   labelencoder,
                   condition_key,
-                  n_epochs=1000,
-                  batch_size=512,
+                  n_epochs=params['epochs'],
+                  batch_size=params['batch'],
                   verbose=2,
-                  early_stop_limit=20,
-                  lr_reducer=10,
+                  early_stop_limit=params['earlyStop'],
+                  lr_reducer=params['lrReduce'],
                   shuffle=True,
                   save=False,
                   retrain=True,
@@ -153,8 +182,8 @@ else:
     pred_adata.obs[condition_key] = [f"{source_condition}_to_{target_condition}"] * pred_adata.shape[0]
     pred_adata.obs[cell_type_key] = specific_celltype
 
-#     adata_to_write = pred_adata.concatenate(target_adata)
-#     adata_to_write.write_h5ad(f"/home/mohsen/data/trvae/reconstructed/trVAE_{data_name}/{specific_celltype}.h5ad")
+    adata_to_write = pred_adata.concatenate(target_adata)
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{combination}.h5ad")
     # reptrvae.pl.plot_umap(mmd_adata,
     #                       condition_key, cell_type_key,
     #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
