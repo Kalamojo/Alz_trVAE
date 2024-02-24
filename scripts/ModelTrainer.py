@@ -18,7 +18,9 @@ def main():
     if len(sys.argv) < 2:
         model_to_train = "all"
         dataset_to_train = None
-    elif len(sys) < 3:
+    elif len(sys.argv) < 3:
+        raise Exception("Dataset parameter missing")
+    elif len(sys.argv) < 4:
         raise Exception("Combination parameter missing")
     else:
         model_to_train = sys.argv[1]
