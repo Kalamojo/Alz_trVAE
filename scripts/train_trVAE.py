@@ -24,7 +24,7 @@ if data_name == "alzPro":
     if len(sys.argv) == 4:
         specific_celltype = sys.argv[3]
     else:
-        specific_celltype = "3m"
+        specific_celltype = "all"
     dname = data_name
 
 elif data_name == "alzPro-time":
@@ -42,7 +42,7 @@ elif data_name == "alzPro-time":
     if len(sys.argv) == 4:
         specific_celltype = sys.argv[3]
     else:
-        specific_celltype = "HET"
+        specific_celltype = "all"
     dname = data_name.split('-')[0]
 
 else:
@@ -55,7 +55,9 @@ adata = adata[adata.obs[condition_key].isin(conditions)]
 #     sc.pp.highly_variable_genes(adata, n_top_genes=2000)
 #     adata = adata[:, adata.var['highly_variable']]
 
-train_adata, valid_adata = reptrvae.utils.train_test_split(adata, 0.80)
+#train_adata, valid_adata = reptrvae.utils.train_test_split(adata, 0.80)
+train_adata = adata[adata.obs["Validation"] == "Train"]
+valid_adata = adata[adata.obs["Validation"] == "Test"]
 
 if norm:
     params = {
@@ -75,63 +77,56 @@ else:
     }
 
 if specific_celltype == 'all':
-    for specific_celltype in adata.obs[cell_type_key].unique().tolist():
-        net_train_adata = train_adata[
-            ~((train_adata.obs[cell_type_key] == specific_celltype) & (train_adata.obs[condition_key].isin(target_conditions)))]
-        net_valid_adata = valid_adata[
-            ~((valid_adata.obs[cell_type_key] == specific_celltype) & (valid_adata.obs[condition_key].isin(target_conditions)))]
+    network = reptrvae.models.trVAE(x_dimension=train_adata.shape[1],
+                                    z_dimension=40,
+                                    n_conditions=len(train_adata.obs[condition_key].unique()),
+                                    alpha=5e-5,
+                                    beta=500,
+                                    eta=100,
+                                    clip_value=1e6,
+                                    lambda_l1=0.0,
+                                    lambda_l2=0.0,
+                                    learning_rate=params['lr'],
+                                    model_path=f"./models/trVAE/best/{data_name}-{specific_celltype}/",
+                                    dropout_rate=0.2,
+                                    output_activation='relu')
 
-        network = reptrvae.models.trVAE(x_dimension=net_train_adata.shape[1],
-                                        z_dimension=40,
-                                        n_conditions=len(net_train_adata.obs[condition_key].unique()),
-                                        alpha=5e-5,
-                                        beta=500,
-                                        eta=100,
-                                        clip_value=1e6,
-                                        lambda_l1=0.0,
-                                        lambda_l2=0.0,
-                                        learning_rate=params['lr'],
-                                        model_path=f"./models/trVAE/best/{data_name}-{specific_celltype}/",
-                                        dropout_rate=0.2,
-                                        output_activation='relu')
+    network.train(train_adata,
+                    valid_adata,
+                    labelencoder,
+                    condition_key,
+                    n_epochs=params['epochs'],
+                    batch_size=params['batch'],
+                    verbose=2,
+                    early_stop_limit=params['earlyStop'],
+                    lr_reducer=params['lrReduce'],
+                    shuffle=True,
+                    save=False,
+                    retrain=True,
+                    )
 
-        network.train(net_train_adata,
-                      net_valid_adata,
-                      labelencoder,
-                      condition_key,
-                      n_epochs=params['epochs'],
-                      batch_size=params['batch'],
-                      verbose=2,
-                      early_stop_limit=params['earlyStop'],
-                      lr_reducer=params['lrReduce'],
-                      shuffle=True,
-                      save=False,
-                      retrain=True,
-                      )
+    train_labels, _ = reptrvae.tl.label_encoder(train_adata, labelencoder, condition_key)
+    mmd_adata = network.to_mmd_layer(train_adata, train_labels, feed_fake=-1)
 
-        train_labels, _ = reptrvae.tl.label_encoder(net_train_adata, labelencoder, condition_key)
-        mmd_adata = network.to_mmd_layer(net_train_adata, train_labels, feed_fake=-1)
+    source_adata = adata[adata.obs[condition_key] == source_condition]
+    target_adata = adata[adata.obs[condition_key] == target_condition]
+    source_labels = np.zeros(source_adata.shape[0]) + labelencoder[source_condition]
+    target_labels = np.zeros(source_adata.shape[0]) + labelencoder[target_condition]
 
-        cell_type_adata = adata[adata.obs[cell_type_key] == specific_celltype]
-        source_adata = cell_type_adata[cell_type_adata.obs[condition_key] == source_condition]
-        target_adata = cell_type_adata[cell_type_adata.obs[condition_key] == target_condition]
-        source_labels = np.zeros(source_adata.shape[0]) + labelencoder[source_condition]
-        target_labels = np.zeros(source_adata.shape[0]) + labelencoder[target_condition]
+    pred_adata = network.predict(source_adata,
+                                    encoder_labels=source_labels,
+                                    decoder_labels=target_labels,
+                                    )
 
-        pred_adata = network.predict(source_adata,
-                                     encoder_labels=source_labels,
-                                     decoder_labels=target_labels,
-                                     )
+    pred_adata.obs[condition_key] = [f"{source_condition}_to_{target_condition}"] * pred_adata.shape[0]
+    pred_adata.obs[cell_type_key] = specific_celltype
 
-        pred_adata.obs[condition_key] = [f"{source_condition}_to_{target_condition}"] * pred_adata.shape[0]
-        pred_adata.obs[cell_type_key] = specific_celltype
-
-        adata_to_write = pred_adata.concatenate(target_adata)
-        adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if norm else 'count'}_{combination}.h5ad")
-        # reptrvae.pl.plot_umap(mmd_adata,
-        #                       condition_key, cell_type_key,
-        #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
-        #                       ext="png")
+    adata_to_write = pred_adata.concatenate(target_adata)
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if norm else 'count'}_{combination}.h5ad")
+    # reptrvae.pl.plot_umap(mmd_adata,
+    #                       condition_key, cell_type_key,
+    #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
+    #                       ext="png")
 else:
     net_train_adata = train_adata[
         ~((train_adata.obs[cell_type_key] == specific_celltype) & (train_adata.obs[condition_key].isin(target_conditions)))]
