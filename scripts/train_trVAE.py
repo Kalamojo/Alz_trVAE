@@ -4,7 +4,7 @@ import scanpy as sc
 
 import reptrvae
 
-normalize = False
+normalize = True
 data_name = sys.argv[1]
 print(sys.argv)
 # specific_cell_type = sys.argv[2]
