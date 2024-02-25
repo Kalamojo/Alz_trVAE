@@ -4,7 +4,7 @@ import scanpy as sc
 
 import reptrvae
 
-norm = True
+normalize = False
 data_name = sys.argv[1]
 print(sys.argv)
 # specific_cell_type = sys.argv[2]
@@ -48,8 +48,11 @@ elif data_name == "alzPro-time":
 else:
     raise Exception("InValid data name")
 
-adata = sc.read(f"./data/{dname}_{'normalized' if norm else 'count'}_{combination}.h5ad")
+adata = sc.read(f"./data/{dname}_{'normalized' if normalize else 'count'}_{combination}.h5ad")
 adata = adata[adata.obs[condition_key].isin(conditions)]
+
+if specific_celltype != 'all' and specific_celltype not in list(adata.obs[cell_type_key]):
+    raise Exception(f"Specified celltype '{specific_celltype}' not found. Options: {list(adata.obs[cell_type_key].unique())}")
 
 # if adata.shape[1] > 2000:
 #     sc.pp.highly_variable_genes(adata, n_top_genes=2000)
@@ -59,7 +62,7 @@ adata = adata[adata.obs[condition_key].isin(conditions)]
 train_adata = adata[adata.obs["Validation"] == "Train"]
 valid_adata = adata[adata.obs["Validation"] == "Test"]
 
-if norm:
+if normalize:
     params = {
         "lr": 0.00005,
         "epochs": 1000,
@@ -122,7 +125,7 @@ if specific_celltype == 'all':
     pred_adata.obs[cell_type_key] = specific_celltype
 
     adata_to_write = pred_adata.concatenate(target_adata)
-    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if norm else 'count'}_{combination}.h5ad")
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if normalize else 'count'}_{combination}.h5ad")
     # reptrvae.pl.plot_umap(mmd_adata,
     #                       condition_key, cell_type_key,
     #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
@@ -179,7 +182,7 @@ else:
     pred_adata.obs[cell_type_key] = specific_celltype
 
     adata_to_write = pred_adata.concatenate(target_adata)
-    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if norm else 'count'}_{combination}.h5ad")
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if normalize else 'count'}_{combination}.h5ad")
     # reptrvae.pl.plot_umap(mmd_adata,
     #                       condition_key, cell_type_key,
     #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
