@@ -29,8 +29,8 @@ if data_name == "alzPro":
 
 elif data_name == "alzPro-time":
     conditions = ["3m", "6m", "9m"]
-    source_condition = "3"
-    target_condition = "9m"
+    source_condition = "3m"
+    target_condition = "6m"
     target_conditions = [target_condition]
     labelencoder = {"3m": 0, "6m": 1, "9m": 2}
     cell_type_key = "Group"
