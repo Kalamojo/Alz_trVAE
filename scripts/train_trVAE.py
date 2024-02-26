@@ -4,7 +4,7 @@ import scanpy as sc
 
 import reptrvae
 
-normalize = True
+normalize = False
 data_name = sys.argv[1]
 print(sys.argv)
 # specific_cell_type = sys.argv[2]
@@ -29,7 +29,7 @@ if data_name == "alzPro":
 
 elif data_name == "alzPro-time":
     conditions = ["3m", "6m", "9m"]
-    source_condition = "6m"
+    source_condition = "3"
     target_condition = "9m"
     target_conditions = [target_condition]
     labelencoder = {"3m": 0, "6m": 1, "9m": 2}
@@ -125,7 +125,7 @@ if specific_celltype == 'all':
     pred_adata.obs[cell_type_key] = specific_celltype
 
     adata_to_write = pred_adata.concatenate(target_adata)
-    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if normalize else 'count'}_{combination}.h5ad")
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{source_condition}_to_{target_condition}_{'norm' if normalize else 'count'}_{combination}.h5ad")
     # reptrvae.pl.plot_umap(mmd_adata,
     #                       condition_key, cell_type_key,
     #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
@@ -182,7 +182,7 @@ else:
     pred_adata.obs[cell_type_key] = specific_celltype
 
     adata_to_write = pred_adata.concatenate(target_adata)
-    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{'norm' if normalize else 'count'}_{combination}.h5ad")
+    adata_to_write.write_h5ad(f"./data/reconstructed/trVAE_{data_name}/{specific_celltype}_{source_condition}_to_{target_condition}_{'norm' if normalize else 'count'}_{combination}.h5ad")
     # reptrvae.pl.plot_umap(mmd_adata,
     #                       condition_key, cell_type_key,
     #                       frameon=False, path_to_save=f"./results/{data_name}/", model_name="trVAE_MMD",
