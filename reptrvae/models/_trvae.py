@@ -7,7 +7,8 @@ from keras.callbacks import CSVLogger, History, EarlyStopping, ReduceLROnPlateau
 from keras.layers import Dense, BatchNormalization, Dropout, Input, concatenate, Lambda
 from keras.layers.advanced_activations import LeakyReLU
 from keras.models import Model, load_model
-from keras.utils import to_categorical
+#from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 from scipy import sparse
 
 from reptrvae.models._network import Network

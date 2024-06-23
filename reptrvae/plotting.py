@@ -107,7 +107,7 @@ def reg_mean_plot(adata, condition_key, axis_keys, labels, path_to_save="./reg_m
             # y1_bar = y1[j]
             # pyplot.text(x_bar, y1_bar, i, fontsize=11, color="black")
     if gene_list is not None:
-        adjust_text(texts, x=x, y=y, arrowprops=dict(arrowstyle="->", color='grey', lw=0.5), force_points=(0.0, 0.0))
+        adjust_text(texts, x=x, y=y, arrowprops=dict(arrowstyle="->", color='grey', lw=0.5), force_static=(0.0, 0.0))
     if legend:
         pyplot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     if title is None:
